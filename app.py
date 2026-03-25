@@ -1,8 +1,8 @@
 """
-Umnico Auto Voice Greeting Bot
-================================
-Автоматически отправляет голосовое приветствие всем новым чатам
-в интеграции GoodZhan (telebot, ID 108954) со статусом "Первичный".
+Umnico Auto Greeting Bot
+=========================
+Автоматически отправляет приветствие (голосовое, видео, фото или документ)
+всем новым клиентам в указанной интеграции со статусом "Первичный".
 
 Запуск:
     pip install requests python-dotenv
@@ -24,12 +24,13 @@ load_dotenv()
 UMNICO_TOKEN = os.getenv(
     "UMNICO_TOKEN", "ВАШ_API_ТОКЕН"
 )  # Umnico → Настройки → API Public
-VOICE_FILE_PATH = os.getenv("VOICE_FILE", "Салем_1.ogg")
+GREETING_FILE = os.getenv("GREETING_FILE", "Салем_1.ogg")  # Файл для отправки
+FILE_TYPE = os.getenv("FILE_TYPE", "audio")  # Тип файла: audio, video, photo, doc
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "10"))  # секунд между проверками
 LOG_FILE = os.getenv("LOG_FILE", "bot.log")  # файл для логов
 BASE_URL = "https://api.umnico.com/v1.3"
-TARGET_SA_ID = 108954  # ID интеграции (GoodZhan telebot)
-TARGET_STATUS_ID = 958299  # ID статуса "Первичный"
+TARGET_SA_ID = int(os.getenv("TARGET_SA_ID", "108954"))  # ID интеграции
+TARGET_STATUS_ID = int(os.getenv("TARGET_STATUS_ID", "958299"))  # ID статуса
 # ─────────────────────────────────────────
 
 logging.basicConfig(
@@ -87,19 +88,21 @@ def get_source_real_id(lead_id: int) -> Optional[str]:
 
 def upload_file(source_real_id: str) -> Optional[dict]:
     try:
-        with open(VOICE_FILE_PATH, "rb") as f:
+        with open(GREETING_FILE, "rb") as f:
             r = requests.post(
                 f"{BASE_URL}/messaging/upload",
                 headers=hdrs_base(),
                 data={"source": source_real_id},
-                files={"media": (os.path.basename(VOICE_FILE_PATH), f, "audio/ogg")},
+                files={
+                    "media": (os.path.basename(GREETING_FILE), f, f"{FILE_TYPE}/ogg")
+                },
                 timeout=30,
             )
         if r.status_code == 200:
             return r.json()
         logger.error(f"❌ Ошибка загрузки файла {r.status_code}: {r.text[:300]}")
     except FileNotFoundError:
-        logger.error(f"❌ Файл не найден: {VOICE_FILE_PATH}")
+        logger.error(f"❌ Файл не найден: {GREETING_FILE}")
     except requests.exceptions.RequestException as e:
         logger.error(f"❌ Сетевая ошибка при загрузке файла: {e}")
     return None
@@ -201,8 +204,10 @@ if __name__ == "__main__":
     if "ВАШ_API_ТОКЕН" in UMNICO_TOKEN:
         logger.error("❌ Укажите UMNICO_TOKEN в файле .env!")
         exit(1)
-    if not os.path.exists(VOICE_FILE_PATH):
-        logger.error(f"❌ Файл не найден: {VOICE_FILE_PATH}")
+    if not os.path.exists(GREETING_FILE):
+        logger.error(f"❌ Файл не найден: {GREETING_FILE}")
         exit(1)
     logger.info("🚀 Бот запущен")
+    logger.info(f"📁 Файл для отправки: {GREETING_FILE} (тип: {FILE_TYPE})")
+    logger.info(f"🎯 Интеграция ID: {TARGET_SA_ID}, Статус ID: {TARGET_STATUS_ID}")
     polling_loop()
