@@ -2,7 +2,7 @@
 Umnico Auto Greeting Bot
 =========================
 Автоматически отправляет приветствие (голосовое, видео, фото или документ)
-всем новым клиентам в указанной интеграции со статусом "Первичный".
+всем новым клиентам в непринятых диалогах (inbox) указанной интеграции.
 
 Запуск:
     pip install requests python-dotenv
@@ -57,15 +57,19 @@ def hdrs_base():
     }
 
 
-def get_active_leads() -> list:
+def get_inbox_leads() -> list:
+    """
+    Получает список непринятых обращений (inbox).
+    Это обращения, которые еще не взяты в работу.
+    """
     try:
-        r = requests.get(f"{BASE_URL}/leads/active", headers=hdrs(), timeout=10)
+        r = requests.get(f"{BASE_URL}/leads/inbox", headers=hdrs(), timeout=10)
         if r.status_code == 200:
             data = r.json()
             return data if isinstance(data, list) else (data.get("data") or [])
-        logger.error(f"❌ Ошибка получения лидов {r.status_code}: {r.text[:200]}")
+        logger.error(f"❌ Ошибка получения inbox лидов {r.status_code}: {r.text[:200]}")
     except requests.exceptions.RequestException as e:
-        logger.error(f"❌ Сетевая ошибка при получении лидов: {e}")
+        logger.error(f"❌ Сетевая ошибка при получении inbox лидов: {e}")
     return []
 
 
@@ -181,7 +185,7 @@ def polling_loop():
 
     try:
         while True:
-            leads = get_active_leads()
+            leads = get_inbox_leads()
 
             if not _initialized:
                 _seen_customers = {
@@ -191,7 +195,7 @@ def polling_loop():
                 }
                 _initialized = True
                 logger.info(
-                    f"📋 Существующих клиентов: {len(_seen_customers)} — пропускаем"
+                    f"📋 Существующих клиентов в inbox: {len(_seen_customers)} — пропускаем"
                 )
             else:
                 for lead in leads:
@@ -209,29 +213,14 @@ def polling_loop():
                         continue
 
                     sa_id = (lead.get("socialAccount") or {}).get("id")
-                    status_id = lead.get("statusId")
 
-                    # Только новые клиенты из нужной интеграции с нужным статусом
-                    if (
-                        not sa_id
-                        or sa_id != TARGET_SA_ID
-                        or status_id != TARGET_STATUS_ID
-                    ):
+                    # Только новые клиенты из нужной интеграции
+                    if not sa_id or sa_id != TARGET_SA_ID:
                         _seen_customers.add(customer_id)
                         continue
 
                     # ВАЖНО: Проверяем, является ли это первое обращение клиента в интеграции
                     if not is_first_contact_in_integration(int(customer_id), sa_id):
-                        logger.info(
-                            f"⏭️ Клиент {customer.get('name', '')} (id={customer_id}) уже писал ранее в интеграции {sa_id} — пропускаем"
-                        )
-                        _seen_customers.add(customer_id)
-                        continue
-
-                    # ВАЖНО: Проверяем, является ли это первое обращение клиента в интеграции
-                    if not is_first_contact_in_integration(
-                        int(customer_id), int(sa_id)
-                    ):
                         logger.info(
                             f"⏭️ Клиент {customer.get('name', '')} (id={customer_id}) уже писал ранее в интеграции {sa_id} — пропускаем"
                         )
@@ -262,5 +251,6 @@ if __name__ == "__main__":
         exit(1)
     logger.info("🚀 Бот запущен")
     logger.info(f"📁 Файл для отправки: {GREETING_FILE} (тип: {FILE_TYPE})")
-    logger.info(f"🎯 Интеграция ID: {TARGET_SA_ID}, Статус ID: {TARGET_STATUS_ID}")
+    logger.info(f"🎯 Интеграция ID: {TARGET_SA_ID}")
+    logger.info(f"📥 Работа с непринятыми диалогами (inbox)")
     polling_loop()
