@@ -258,15 +258,27 @@ def webhook():
         event_type = data.get("type")  # Umnico использует поле "type" вместо "event"
         logger.info(f"📋 Тип события: {event_type}")
 
-        # Обрабатываем событие "Новое обращение" или "Изменение обращения"
-        if event_type in ("lead.created", "lead.changed"):
-            lead = data.get("lead", {})
-            lead_id = lead.get("id")
-            customer = lead.get("customer", {})
-            customer_id = customer.get("id")
-            sa_id = lead.get("socialAccount", {}).get("id")
+        # Обрабатываем только входящие сообщения от новых клиентов
+        if event_type == "message.incoming":
+            # Проверяем, новый ли это клиент
+            is_new_customer = data.get("isNewCustomer", False)
 
-            if not customer_id or not sa_id:
+            if not is_new_customer:
+                logger.debug(f"⏭️ Webhook: клиент не новый, пропускаем")
+                return jsonify({"status": "ok"}), 200
+
+            # Получаем данные из сообщения
+            message_data = data.get("message", {})
+            sa_data = message_data.get("sa", {})
+            sa_id = sa_data.get("id")
+
+            sender = message_data.get("sender", {})
+            customer_id = sender.get("customerId")
+            customer_name = sender.get("login", "")
+
+            lead_id = data.get("leadId")
+
+            if not customer_id or not sa_id or not lead_id:
                 logger.warning(f"⚠️ Webhook: неполные данные в событии")
                 return jsonify({"status": "ok"}), 200
 
@@ -283,18 +295,16 @@ def webhook():
                 logger.debug(f"⏭️ Webhook: клиент {customer_id} уже обработан")
                 return jsonify({"status": "ok"}), 200
 
-            # Проверяем, первое ли это обращение клиента
-            if not is_first_contact_in_integration(customer_id, sa_id):
-                logger.info(
-                    f"⏭️ Webhook: клиент {customer.get('name', '')} (id={customer_id}) уже писал ранее"
-                )
-                _seen_customers.add(customer_id_str)
-                return jsonify({"status": "ok"}), 200
+            # Создаем объект lead для отправки
+            lead = {
+                "id": lead_id,
+                "userId": data.get("message", {}).get("sender", {}).get("id"),
+                "customer": {"id": customer_id, "name": customer_name},
+            }
 
             # Отправляем приветствие
-            name = customer.get("name", "")
             logger.info(
-                f"🆕 Webhook: новый клиент (первый контакт): {name} (customer_id={customer_id}, lead_id={lead_id}, integration={sa_id})"
+                f"🆕 Webhook: новый клиент: {customer_name} (customer_id={customer_id}, lead_id={lead_id}, integration={sa_id})"
             )
             send_greeting(lead, greeting_file)
             _seen_customers.add(customer_id_str)
