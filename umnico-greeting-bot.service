@@ -5,12 +5,12 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/opt/goodzhan-umnico-greeting-bot
-ExecStart=/usr/bin/python3 /opt/goodzhan-umnico-greeting-bot/app_webhook.py
+WorkingDirectory=/opt/umnico-greeting-bot
+ExecStart=/usr/bin/python3 /opt/umnico-greeting-bot/app_webhook.py
 Restart=always
 RestartSec=10
-StandardOutput=append:/opt/goodzhan-umnico-greeting-bot/bot.log
-StandardError=append:/opt/goodzhan-umnico-greeting-bot/bot.log
+StandardOutput=append:/opt/umnico-greeting-bot/bot.log
+StandardError=append:/opt/umnico-greeting-bot/bot.log
 
 [Install]
 WantedBy=multi-user.target

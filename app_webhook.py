@@ -31,8 +31,8 @@ BASE_URL = "https://api.umnico.com/v1.3"
 
 # Конфигурация интеграций: {integration_id: greeting_file}
 INTEGRATIONS = {
-    108954: "Салем_1.ogg",  # GoodZhan
-    110418: "NURKA Salem.ogg",  # NURKA
+    108954: "Салем_1.ogg",
+    110418: "NURKA Salem.ogg",
 }
 # ─────────────────────────────────────────
 
