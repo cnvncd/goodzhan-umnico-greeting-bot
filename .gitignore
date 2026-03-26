@@ -1,0 +1,32 @@
+# Environment variables
+.env
+
+# Audio/Video/Media files
+*.ogg
+*.mp3
+*.wav
+*.mp4
+*.avi
+*.mov
+
+# Log files
+*.log
+
+# Systemd service files
+*.service
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
