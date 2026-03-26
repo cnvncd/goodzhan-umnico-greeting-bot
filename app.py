@@ -21,9 +21,8 @@ load_dotenv()
 # ─────────────────────────────────────────
 #  НАСТРОЙКИ
 # ─────────────────────────────────────────
-UMNICO_TOKEN = os.getenv(
-    "UMNICO_TOKEN", "ВАШ_API_ТОКЕН"
-)  # Umnico → Настройки → API Public
+UMNICO_LOGIN = os.getenv("UMNICO_LOGIN", "")  # Логин от Umnico
+UMNICO_PASSWORD = os.getenv("UMNICO_PASSWORD", "")  # Пароль от Umnico
 GREETING_FILE = os.getenv("GREETING_FILE", "Салем_1.ogg")  # Файл для отправки
 FILE_TYPE = os.getenv("FILE_TYPE", "audio")  # Тип файла: audio, video, photo, doc
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "10"))  # секунд между проверками
@@ -42,18 +41,78 @@ logger = logging.getLogger(__name__)
 
 _seen_customers: set = set()
 _initialized = False
+_access_token: str = ""
+_refresh_token: str = ""
+_token_expires: int = 0
+
+
+def get_access_token() -> str:
+    """
+    Получает или обновляет access token через OAuth авторизацию.
+    """
+    global _access_token, _refresh_token, _token_expires
+
+    current_time = int(time.time())
+
+    # Если токен еще валиден, возвращаем его
+    if _access_token and current_time < _token_expires - 60:
+        return _access_token
+
+    # Если есть refresh token, пытаемся обновить
+    if _refresh_token and current_time < _token_expires:
+        try:
+            logger.info("🔄 Обновление access token...")
+            r = requests.post(
+                f"{BASE_URL}/auth/tokens",
+                headers={"Authorization": _refresh_token},
+                timeout=10,
+            )
+            if r.status_code == 200:
+                data = r.json()
+                _access_token = data["accessToken"]["token"]
+                _token_expires = data["accessToken"]["exp"]
+                if "refreshToken" in data:
+                    _refresh_token = data["refreshToken"]["token"]
+                logger.info("✅ Access token обновлен")
+                return _access_token
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось обновить токен: {e}")
+
+    # Авторизация по логину и паролю
+    try:
+        logger.info("🔐 Авторизация по логину и паролю...")
+        r = requests.post(
+            f"{BASE_URL}/auth/login",
+            json={"login": UMNICO_LOGIN, "pass": UMNICO_PASSWORD},
+            timeout=10,
+        )
+        if r.status_code == 200:
+            data = r.json()
+            _access_token = data["accessToken"]["token"]
+            _token_expires = data["accessToken"]["exp"]
+            _refresh_token = data["refreshToken"]["token"]
+            logger.info("✅ Авторизация успешна")
+            return _access_token
+        else:
+            logger.error(f"❌ Ошибка авторизации {r.status_code}: {r.text[:200]}")
+    except Exception as e:
+        logger.error(f"❌ Ошибка при авторизации: {e}")
+
+    return ""
 
 
 def hdrs():
+    token = get_access_token()
     return {
-        "Authorization": f"bearer {UMNICO_TOKEN}",
+        "Authorization": token,
         "Content-Type": "application/json",
     }
 
 
 def hdrs_base():
+    token = get_access_token()
     return {
-        "Authorization": f"bearer {UMNICO_TOKEN}",
+        "Authorization": token,
     }
 
 
@@ -243,8 +302,8 @@ def polling_loop():
 
 
 if __name__ == "__main__":
-    if "ВАШ_API_ТОКЕН" in UMNICO_TOKEN:
-        logger.error("❌ Укажите UMNICO_TOKEN в файле .env!")
+    if not UMNICO_LOGIN or not UMNICO_PASSWORD:
+        logger.error("❌ Укажите UMNICO_LOGIN и UMNICO_PASSWORD в файле .env!")
         exit(1)
     if not os.path.exists(GREETING_FILE):
         logger.error(f"❌ Файл не найден: {GREETING_FILE}")
