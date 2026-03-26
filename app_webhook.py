@@ -247,13 +247,19 @@ def webhook():
     try:
         data = request.get_json()
 
+        # Логируем все входящие webhook'и для отладки
+        import json
+
+        logger.info(f"📥 Webhook получен: {json.dumps(data, ensure_ascii=False)[:500]}")
+
         if not data:
             return jsonify({"status": "error", "message": "No data"}), 400
 
-        event_type = data.get("event")
+        event_type = data.get("type")  # Umnico использует поле "type" вместо "event"
+        logger.info(f"📋 Тип события: {event_type}")
 
-        # Обрабатываем событие "Новое обращение"
-        if event_type == "new_lead":
+        # Обрабатываем событие "Новое обращение" или "Изменение обращения"
+        if event_type in ("lead.created", "lead.changed"):
             lead = data.get("lead", {})
             lead_id = lead.get("id")
             customer = lead.get("customer", {})
